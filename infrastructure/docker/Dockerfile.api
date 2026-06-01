@@ -23,7 +23,7 @@ COPY packages/agents/data-verify/package.json packages/agents/data-verify/
 COPY packages/agents/biz-signal/package.json packages/agents/biz-signal/
 COPY apps/api/package.json apps/api/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source
 COPY packages/ packages/
