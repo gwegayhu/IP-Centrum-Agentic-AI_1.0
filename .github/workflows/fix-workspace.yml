@@ -1,0 +1,21 @@
+name: Fix workspace deps
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace * with workspace:* in all package.json files
+        run: |
+          find . -name "package.json" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/dist/*" \
+            -exec sed -i 's/"@ip-centrum\/\([^"]*\)": "\*"/"@ip-centrum\/\1": "workspace:*"/g' {} \;
+      - name: Commit
+        run: |
+          git config user.email "bot@ip-centrum.com"
+          git config user.name "IP Centrum Bot"
+          git add .
+          git commit -m "fix: use workspace:* for all internal package refs"
+          git push
