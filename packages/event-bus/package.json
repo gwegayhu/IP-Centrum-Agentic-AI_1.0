@@ -9,7 +9,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@ip-centrum/shared": "*",
+    "@ip-centrum/shared": "workspace:*",
     "ioredis": "^5.3.0",
     "uuid": "^9.0.0"
   },

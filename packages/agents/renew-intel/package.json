@@ -6,9 +6,9 @@
   "types": "./dist/index.d.ts",
   "scripts": { "build": "tsc", "dev": "tsc --watch", "test": "jest" },
   "dependencies": {
-    "@ip-centrum/shared": "*",
-    "@ip-centrum/database": "*",
-    "@ip-centrum/agent-orchestrator": "*",
+    "@ip-centrum/shared": "workspace:*",
+    "@ip-centrum/database": "workspace:*",
+    "@ip-centrum/agent-orchestrator": "workspace:*",
     "@anthropic-ai/sdk": "^0.27.0"
   },
   "devDependencies": { "typescript": "^5.4.0", "@types/node": "^20.0.0" }
