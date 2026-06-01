@@ -9,11 +9,11 @@
     "test": "jest --config jest.config.js"
   },
   "dependencies": {
-    "@ip-centrum/shared": "*",
-    "@ip-centrum/database": "*",
-    "@ip-centrum/event-bus": "*",
-    "@ip-centrum/agent-orchestrator": "*",
-    "@ip-centrum/agent-doc-intel": "*",
+    "@ip-centrum/shared": "workspace:*",
+    "@ip-centrum/database": "workspace:*",
+    "@ip-centrum/event-bus": "workspace:*",
+    "@ip-centrum/agent-orchestrator": "workspace:*",
+    "@ip-centrum/agent-doc-intel": "workspace:*",
     "@ip-centrum/agent-case-health": "*",
     "@ip-centrum/agent-data-verify": "*",
     "@ip-centrum/agent-trans-orch": "*",

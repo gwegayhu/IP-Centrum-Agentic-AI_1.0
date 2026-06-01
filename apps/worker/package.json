@@ -8,10 +8,11 @@
     "start": "node dist/worker.js"
   },
   "dependencies": {
-    "@ip-centrum/shared": "*",
-    "@ip-centrum/database": "*",
-    "@ip-centrum/event-bus": "*",
-    "@ip-centrum/agent-orchestrator": "*",
+    "@ip-centrum/shared": "workspace:*",
+    "@ip-centrum/database": "workspace:*",
+    "@ip-centrum/event-bus": "workspace:*",
+    "@ip-centrum/agent-orchestrator": "workspace:*",
+    "@ip-centrum/agent-doc-intel": "workspace:*",
     "node-cron": "^3.0.0",
     "dotenv": "^16.4.0"
   },

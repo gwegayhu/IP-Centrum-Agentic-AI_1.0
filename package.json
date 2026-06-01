@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*",
-    "packages/agents/*"
+    "apps/workspace:*",
+    "packages/workspace:*",
+    "packages/agents/workspace:*"
   ],
   "scripts": {
     "build": "turbo run build",
