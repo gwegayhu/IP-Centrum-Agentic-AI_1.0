@@ -1,0 +1,117 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options: [staging, production]
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.ip-centrum.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/ip-centrum
+            git pull origin main
+            export IMAGE_TAG=${{ github.sha }}
+            docker-compose -f infrastructure/docker/docker-compose.yml pull
+            docker-compose -f infrastructure/docker/docker-compose.yml up -d --no-deps api worker frontend
+            docker-compose -f infrastructure/docker/docker-compose.yml exec -T api node apps/api/dist/migrate.js
+            echo "Staging deploy complete: $IMAGE_TAG"
+
+      - name: Smoke test staging
+        run: |
+          sleep 15
+          curl -f https://staging.ip-centrum.com/health || exit 1
+
+      - name: Notify Slack (staging)
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {"text": "${{ job.status == 'success' && '✅' || '❌' }} Staging deploy ${{ job.status }}: ${{ github.sha }}"}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://app.ip-centrum.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create database backup before deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            docker exec ip-centrum-postgres pg_dump -U ipcentrum ipcentrum_db \
+              | gzip > /backups/pre-deploy-${TIMESTAMP}.sql.gz
+            echo "Backup created: pre-deploy-${TIMESTAMP}.sql.gz"
+
+      - name: Deploy to production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/ip-centrum
+            git fetch --tags
+            git checkout ${{ github.ref_name }}
+            export IMAGE_TAG=${{ github.sha }}
+            # Rolling update: api first, then worker
+            docker-compose -f infrastructure/docker/docker-compose.yml pull api
+            docker-compose -f infrastructure/docker/docker-compose.yml up -d --no-deps api
+            sleep 30
+            curl -f http://localhost:3000/health || (echo "API health check failed — rolling back" && exit 1)
+            docker-compose -f infrastructure/docker/docker-compose.yml exec -T api node apps/api/dist/migrate.js
+            docker-compose -f infrastructure/docker/docker-compose.yml pull worker frontend
+            docker-compose -f infrastructure/docker/docker-compose.yml up -d --no-deps worker frontend
+            echo "Production deploy complete: $IMAGE_TAG"
+
+      - name: Production smoke tests
+        run: |
+          sleep 20
+          curl -f https://app.ip-centrum.com/health || exit 1
+          curl -f https://app.ip-centrum.com/health/ready || exit 1
+
+      - name: Notify team (production)
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "${{ job.status == 'success' && '🚀' || '🚨' }} *Production deploy ${{ job.status }}*\nVersion: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nDeployed by: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

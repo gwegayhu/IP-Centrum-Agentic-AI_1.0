@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Test coverage
+coverage/
+
+# Docker
+.docker/
+
+# Terraform state
+infrastructure/terraform/.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Secrets
+*.pem
+*.key
+secrets/

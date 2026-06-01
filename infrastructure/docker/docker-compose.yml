@@ -1,0 +1,144 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL Database ───
+  postgres:
+    image: postgres:16-alpine
+    container_name: ip-centrum-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ipcentrum_db
+      POSTGRES_USER: ipcentrum
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_password}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ipcentrum -d ipcentrum_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis (Event Bus + Queues) ───
+  redis:
+    image: redis:7-alpine
+    container_name: ip-centrum-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ─── API Server ───
+  api:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.api
+    container_name: ip-centrum-api
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgresql://ipcentrum:${POSTGRES_PASSWORD:-local_dev_password}@postgres:5432/ipcentrum_db
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Background Worker ───
+  worker:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.worker
+    container_name: ip-centrum-worker
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgresql://ipcentrum:${POSTGRES_PASSWORD:-local_dev_password}@postgres:5432/ipcentrum_db
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  # ─── Frontend (Next.js) ───
+  frontend:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.frontend
+    container_name: ip-centrum-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - '3001:3001'
+    depends_on:
+      - api
+
+  # ─── Nginx reverse proxy ───
+  nginx:
+    image: nginx:alpine
+    container_name: ip-centrum-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+      - frontend
+
+  # ─── Database admin (dev only) ───
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ip-centrum-pgadmin
+    profiles: ['dev-tools']
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@ip-centrum.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - '5050:80'
+    depends_on:
+      - postgres
+
+  # ─── Redis Commander (dev only) ───
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ip-centrum-redis-ui
+    profiles: ['dev-tools']
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - '8081:8081'
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

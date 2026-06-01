@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@ip-centrum/shared": ["./packages/shared/src"],
+      "@ip-centrum/database": ["./packages/database/src"],
+      "@ip-centrum/agents/*": ["./packages/agents/*/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

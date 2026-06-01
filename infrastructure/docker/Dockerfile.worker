@@ -1,0 +1,30 @@
+FROM node:20-alpine AS builder
+
+RUN npm install -g pnpm@9
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages/ packages/
+COPY apps/worker/package.json apps/worker/
+COPY tsconfig.json ./
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @ip-centrum/shared build
+RUN pnpm --filter @ip-centrum/database build
+RUN pnpm --filter @ip-centrum/event-bus build
+RUN pnpm --filter @ip-centrum/agent-orchestrator build
+RUN pnpm --filter @ip-centrum/worker build
+
+FROM node:20-alpine AS production
+
+RUN addgroup -g 1001 -S nodejs && adduser -S ipcentrum -u 1001
+WORKDIR /app
+
+COPY --from=builder --chown=ipcentrum:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=ipcentrum:nodejs /app/apps/worker/dist ./apps/worker/dist
+COPY --from=builder --chown=ipcentrum:nodejs /app/packages ./packages
+
+USER ipcentrum
+ENV NODE_ENV=production
+
+CMD ["node", "apps/worker/dist/worker.js"]

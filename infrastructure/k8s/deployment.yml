@@ -1,0 +1,222 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ip-centrum
+---
+# ─── ConfigMap ───
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ip-centrum-config
+  namespace: ip-centrum
+data:
+  NODE_ENV: "production"
+  API_PORT: "3000"
+  LOG_LEVEL: "info"
+  FEATURE_UP_PATHWAY: "true"
+  HUMAN_GATE_TIMEOUT_HOURS_CRITICAL: "2"
+  HUMAN_GATE_TIMEOUT_HOURS_STANDARD: "4"
+  AUDIT_LOG_RETENTION_YEARS: "7"
+---
+# ─── API Deployment ───
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ip-centrum-api
+  namespace: ip-centrum
+  labels:
+    app: ip-centrum-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ip-centrum-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ip-centrum-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/your-org/ip-centrum/api:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: ip-centrum-config
+            - secretRef:
+                name: ip-centrum-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ip-centrum-api
+  namespace: ip-centrum
+spec:
+  selector:
+    app: ip-centrum-api
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+# ─── Worker Deployment ───
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ip-centrum-worker
+  namespace: ip-centrum
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ip-centrum-worker
+  template:
+    metadata:
+      labels:
+        app: ip-centrum-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/your-org/ip-centrum/worker:latest
+          envFrom:
+            - configMapRef:
+                name: ip-centrum-config
+            - secretRef:
+                name: ip-centrum-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+---
+# ─── Frontend Deployment ───
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ip-centrum-frontend
+  namespace: ip-centrum
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ip-centrum-frontend
+  template:
+    metadata:
+      labels:
+        app: ip-centrum-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/your-org/ip-centrum/frontend:latest
+          ports:
+            - containerPort: 3001
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://api.ip-centrum.com"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ip-centrum-frontend
+  namespace: ip-centrum
+spec:
+  selector:
+    app: ip-centrum-frontend
+  ports:
+    - port: 3001
+      targetPort: 3001
+  type: ClusterIP
+---
+# ─── Ingress ───
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ip-centrum-ingress
+  namespace: ip-centrum
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - app.ip-centrum.com
+        - api.ip-centrum.com
+      secretName: ip-centrum-tls
+  rules:
+    - host: api.ip-centrum.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ip-centrum-api
+                port:
+                  number: 3000
+    - host: app.ip-centrum.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ip-centrum-frontend
+                port:
+                  number: 3001
+---
+# ─── HPA for API ───
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ip-centrum-api-hpa
+  namespace: ip-centrum
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ip-centrum-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

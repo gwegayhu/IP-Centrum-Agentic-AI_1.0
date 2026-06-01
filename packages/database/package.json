@@ -1,0 +1,23 @@
+{
+  "name": "@ip-centrum/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "migrate": "knex --knexfile knexfile.ts migrate:latest",
+    "migrate:rollback": "knex --knexfile knexfile.ts migrate:rollback",
+    "seed": "knex --knexfile knexfile.ts seed:run"
+  },
+  "dependencies": {
+    "@ip-centrum/shared": "*",
+    "knex": "^3.1.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0"
+  }
+}
