@@ -8,7 +8,7 @@ COPY packages/ packages/
 COPY apps/worker/package.json apps/worker/
 COPY tsconfig.json ./
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm --filter @ip-centrum/shared build
 RUN pnpm --filter @ip-centrum/database build
 RUN pnpm --filter @ip-centrum/event-bus build
